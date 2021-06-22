@@ -1,0 +1,474 @@
+
+1) A linux server ( obviously lol :D), i have used CentOS as a OS, so i suggest you to with it also, you can buy either VPS either Dedicated it does not really matter, we don't need some killing machine for this, postfix will not take a lot of resources, but i do recommend to buy at last 512 MB of ram and 20 GB of HDD. You need to buy a VPS with many ip addresses, nowadays, ips become expensive and hard to get, you need to fill stupid justification and other stuff to get a lot of ips, but you can still find a providers which won't ask you for that.
+
+Here is one good hoster : http://www.host1plus.com/vps-hosting/
+
+They DO ALLOW mass mailing, however, they are not saying they allow SPAM, but since they can't prove do you really have opt-in lists or now, just make sure to make your emails looks legit with opt-out link, some fake company info and make them looks good and not spam like with just a banner image inside lol.
+
+They are hosted in Germany and price per ip is 2$, you can find them cheaper, but these guys are quality and their TOS allow mass mailing, so it's up on you where are you going to buy VPS.
+
+If you are going to spend some time on Google you will also find very cheap VPS's which comes with 4 or even 8 ip's by default, they are also good solution.
+
+But i highly recommend you to buy at last 50 ip's, that will increase your inbox ratio a lot and won't lead your ips to blacklists fast. You will get blacklisted, that's a matter of time, but - more ips - more time without blacklisting. If you can afford your self 200 ips and if you will send only 100 emails per day per ip ( 20000 / day ), you won't get blacklisted ever.
+
+
+Also at the end of this topic i will explain how to get whitelisted on some ISP's, mail providers and spam filters.
+
+
+
+
+1 Install Postfix
+
+This tutorial is for Debian, everything is same like with other Linuxes, just don't use sudo command :).
+
+Installation
+
+
+You will be shocked at how simple it is to install the Postfix mail server. All you have to do is follow these steps:
+
+
+1) Open up a terminal window (or, if you are using a GUI-less server just log in).
+
+
+2) Issue the command sudo apt-get install postfix.
+
+
+That's it! Of course, depending upon the current state of your distribution, the installation may or may not have to install some dependencies. But this will happen automatically for you. The installation will also automatically start the Postfix daemon for you. So as soon as installation is complete you can test to make sure you can connect to your Postfix server with the command:
+
+
+telnet localhost 25
+
+
+You should see something like this:
+
+
+Trying 127.0.0.1...
+Connected to http://www.mymail.com.
+Escape character is '^]'.
+220 localhost.localdomain ESMTP Postfix (Ubuntu)
+
+
+Now you might want to first make sure you can also connect to your domain in the same way with the command:
+
+
+telnet http://www.mymail.com 25
+
+
+Of course you will use your own FDQN in the above command (instead of mymail.com). Hopefully you will see the same output you did when you used localhost. If not, you will have to check to make sure your domain is pointing to your server or that port 25 traffic can get to your server from your router, switch, or firewall. Those issues are beyond the scope of this article however.
+
+
+Now it is time to start configuration.
+
+
+Configuring Postfix
+postal-hq.localdomain
+
+The Postfix mail server has one main configuration file /etc/postfix/main.cf. This is where you will do the bulk of your configurations. Open this file up in your favorite text editor (mine is Nano) and look for the following section:
+
+
+myhostname =
+mydestination =
+relayhost =
+mailbox_size_limit = 0
+
+
+This is the section of the configuration file you must focus on. And, believe it or not, there isn't much to do. Below are the sections you need to configure:
+
+
+myhostname: This is the hostname of your machine. But don't put the full hostname. If your machine hostname is mail.mydomain.com you will only use mydomain.
+
+
+mydestination: This parameter specifies what destinations this machine will deliver locally. The default is:
+
+
+mydestination = $myhostname localhost.$mydomain localhost
+
+
+You could also use something like what I have used in the past (for simplicity's sake):
+
+
+xmail.serveuser.com mydomain localhost.localdomain localhost
+
+
+This call is up to you. Either way will work; but the latter line will help to avoid mailloops.
+
+
+mynetworks: This line is a bit trickier. This entry will define authorized destinations that mail can be relayed from. You would think that adding your subnet here would work. Sometimes that is the case; sometimes not. You could go with a mynetworks entry that looks like:
+
+
+mynetworks = 127.0.0.1/8
+
+
+The above entry is a safe entry and defines local machines only.
+
+
+You could also have an entry that looks like:
+
+
+mynetworks = 127.0.0.1/8 192.168.100.1/24
+
+
+The above entry would authorize local machines and your internal network addresses.
+
+
+I have found, however, that the above entries will cause problems with relaying due to constantly changing dhcp addresses. Because of this I have used the following, specialized entry which will avoid this issue:
+
+
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+
+
+Now, if your mail server serves up mail to your entire domain, you will need to add another entry to that section above. That entry is:
+
+
+mydomain = mydomain.com
+
+
+Again, as in all configurations above, the mydomain.com will be substituted with your real domain.
+
+
+Now, save that configuration file and restart your mail server with the command:
+
+
+sudo /etc/init.d/postfix reload
+
+
+Your mail server should be up and running.
+
+
+Users
+
+
+Since this is a Linux mail server, you will need to make sure you have a user name that corresponds with every email address you need. If your server has a GUI you can just use the GUI tool for this. If your server is a GUI-less server you can create users with the command:
+
+
+sudo useradd -m USERNAME
+
+
+Where USERNAME is the actual name of the user. The next step is to give the username a password with the command:
+
+
+sudo passwd USERNAME
+/etc/postfix/main.cf
+
+Again, where USERNAME is the actual username. You will be prompted to enter the new password twice.
+
+
+
+2) Set Up DKIM On Postfix With dkim-milter (CentOS 5.2)
+
+
+
+This howto has been superseded by http://www.topdog.za.net/postfix_dkim_milter
+Introduction
+DKIM is an authentication framework which stores public-keys in DNS and digitally signs emails on a domain basis. It was created as a result of merging Yahoo's domainkeys and Cisco's Identified Internet mail specification. It is defined in RFC 4871.
+
+
+We will be using the milter implementation of dkim http://dkim-milter.sf.net on CentOS 5.2.
+
+
+
+
+
+Installation
+I provide Centos rpms for Dkim-milter at http://www.topdog-software.com/oss/ so we will install the latest version.
+
+
+Install the rpm, ( 32bit and 64bit intel supported )
+# wget http://www.topdog-software.com/oss/roundcube/andrew_topdog-software.com_key.txt
+# rpm --import andrew_topdog-software.com_key.txt
+# http://www.topdog-software.com/oss/dkim-milter/dkim-milter-2.8.2-0.$(uname -i).rpm
+
+
+
+
+
+Generate the Keys
+# sh /usr/share/doc/dkim-milter-2.8.2/dkim-genkey.sh -r -d <domain_name>
+
+
+Replace <domain_name> with the domain name you will be signing the mail for. The command will create two files.
+
+
+default.txt - contains the public key you publish via DNS
+default.private - the private key you use for signing your email
+Move the private key to the dkim-milter directory and secure it.
+
+
+# mv default.private /etc/mail/dkim/default.key.pem
+# chmod 600 /etc/mail/dkim/default.key.pem
+# chown dkim-milt.dkim-milt /etc/mail/dkim/default.key.pem
+
+
+
+
+
+DNS Setup
+You need to publish your public key via DNS, client servers use this key to verify your signed email. The contents of default.txt is the line you need to add to your zone file a sample, is below
+
+
+default._domainkey IN TXT "v=DKIM1; g=*; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDG81CNNVOlWwfhENOZEnJKNlikTB3Dnb5kUC8/zvht/S8SQnx+YgZ/KG7KOus0By8cIDDvwn3ElVRVQ6Jhz/HcvPU5DXCAC5owLBf/gX5tvAnjF1vSL8ZBetxquVHyJQpMFH3VW37m/mxPTGmDL+zJVW+CKpUcI8BJD03iW2l1CwIDAQAB"
+
+
+; ----- DKIM default for topdog-software.com
+Also add this to your zone file.
+
+
+_ssp._domainkey IN TXT "t=y; dkim=unknown"
+
+
+
+
+
+Configuration
+Create the file /etc/sysconfig/dkim-milter with the contents below overwriting the existing sample file that was installed by the rpm, Make sure you set the SIGNING_DOMAIN variable to the domain or domains you will be signing mail for.
+USER="dkim-milt"
+PORT="inet:20209@localhost"
+SIGNING_DOMAIN="<domain_name>"
+
+
+SELECTOR_NAME="default"
+KEYFILE="/etc/mail/dkim/default.key.pem"
+SIGNER=yes
+VERIFIER=yes
+CANON=simple
+SIGALG=rsa-sha1
+REJECTION="bad=r,dns=t,int=t,no=a"
+EXTRA_ARGS="-h -l -D"
+
+
+
+Configure Postfix
+You need to add the following options to the postfix main.cf file to enable it to use the milter.
+
+
+smtpd_milters = inet:localhost:20209
+non_smtpd_milters = inet:localhost:20209
+Append the dkim-milter options to the existing milters if you have other milters already configured.
+
+
+Start dkim-milter and restart postfix
+
+
+# service dkim-milter start
+# service postfix restart
+
+
+
+
+
+Testing
+Send an email to sa-test@sendmail.net or autorespond+dkim@dk.elandsys.com, you will receive a response stating if your setup is working correctly. If you have a Gmail account you can send an email to that account and look at the message details similar to the picture below, you should see signed-by "your domain" if your setup was done correctly.
+
+
+
+
+3) SPF
+
+
+This tutorial shows how to implement SPF (Sender Policy Framework) in a Postfix 2.x installation. The Sender Policy Framework is an open standard specifying a technical method to prevent sender address forgery (see http://www.openspf.org/Introduction). There are lots of SPF extensions and patches available for Postfix, but most require that you recompile Postfix. Therefore we will install the postfix-policyd-spf-perl package from openspf.org which is a Perl package and can be implemented in existing Postfix installations (no Postfix compilation required).
+
+
+I want to say first that this is not the only way of setting up such a system. There are many ways of achieving this goal but this is the way I take. I do not issue any guarantee that this will work for you!
+
+
+
+
+
+1 Preliminary Note
+I assume that you have already set up a working Postfix mail server.
+
+
+The following procedure is distribution-independent, i.e., it should work on any Linux distribution (however, I tested this on Debian Etch).
+
+
+
+
+
+2 Install Required Perl Modules
+The postfix-policyd-spf-perl package depends on the Mail::SPF and the NetAddr::IP Perl modules. Therefore we are going to install them now using the Perl shell. Start the Perl shell like this:
+
+
+perl -MCPAN -e shell
+
+
+If you run the Perl shell for the first time, you will be asked a few questions. You can accept all default values. You will also be asked about the CPAN repositories to use. Select repositories that are close to you.
+
+
+After the initial Perl shell configuration, we can start to install the needed modules. To install Mail::SPF, simply run
+
+
+install Mail::SPF
+
+
+In my case, it tried to install Module::Build (which is a dependency), but then it failed. If this happens to you, simply quit the Perl shell by typing
+
+
+q
+
+
+Then start the Perl shell again:
+
+
+perl -MCPAN -e shell
+
+
+and try to install Mail::SPF again:
+
+
+install Mail::SPF
+
+
+This time it should succeed, and you should see that it also installs the modules Net::DNS::Resolver::programmable and NetAddr::IP on which Mail::SPF depends.
+
+
+A successful installation of Mail:SPF should end like this:
+
+
+Installing /usr/local/bin/spfquery
+Writing /usr/local/lib/perl/5.8.8/auto/Mail/SPF/.packlist
+/usr/bin/make install -- OK
+
+
+Because NetAddr::IP has already been installed, we can now leave the Perl shell:
+
+
+q
+
+
+
+
+
+3 Install postfix-policyd-spf-perl
+Next we download postfix-policyd-spf-perl from http://www.openspf.org/Software to the /usr/src/ directory and install it to the /usr/lib/postfix/ directory like this:
+
+
+cd /usr/src
+wget http://www.openspf.org/blobs/postfix-policyd-spf-perl-2.001.tar.gz
+tar xvfz postfix-policyd-spf-perl-2.001.tar.gz
+cd postfix-policyd-spf-perl-2.001
+cp postfix-policyd-spf-perl /usr/lib/postfix/policyd-spf-perl
+
+
+Then we edit /etc/postfix/master.cf and add the following stanza at the end:
+
+
+vi /etc/postfix/master.cf
+
+
+[...]
+policy unix - n n - - spawn
+user=nobody argv=/usr/bin/perl /usr/lib/postfix/policyd-spf-perl
+(The leading spaces before user=nobody are important so that Postfix knows that this line belongs to the previous one!)
+
+
+Then open /etc/postfix/main.cf and search for the smtpd_recipient_restrictions directive. You should have reject_unauth_destination in that directive, and right after reject_unauth_destination you add check_policy_service unix:private/policy like this:
+
+
+vi /etc/postfix/main.cf
+
+
+[...]
+smtpd_recipient_restrictions = permit_sasl_authenticated,permit_mynetworks,reject_unauth_destination,check_policy_service unix:private/policy
+[...]
+or like this:
+
+
+[...]
+smtpd_recipient_restrictions =
+[...]
+reject_unauth_destination
+check_policy_service unix:private/policy
+[...]
+[...]
+It is important that you specify check_policy_service AFTER reject_unauth_destination or else your system can become an open relay!
+
+
+Then restart Postfix:
+
+
+/etc/init.d/postfix restart
+
+
+That's it already. You should check the README file that comes with the postfix-policyd-spf-perl package, it contains some important details about how postfix-policyd-spf-perl processes emails, e.g. like this part from the postfix-policyd-spf-perl-2.0001 README:
+
+
+This version of the policy server always checks HELO before Mail From (older
+versions just checked HELO if Mail From was null). It will reject mail that
+fails either Mail From or HELO SPF checks. It will defer mail if there is a
+temporary SPF error and the message would othersise be permitted
+(DEFER_IF_PERMIT). If the HELO check produces a REJECT/DEFER result, Mail From
+will not be checked.
+
+
+If the message is not rejected or deferred, the policy server will PREPEND the
+appropriate SPF Received header. In the case of multi-recipient mail, multiple
+headers will get appended. If Mail From is anything other than completely empty
+(i.e. ) then the Mail From result will be used for SPF Received (e.g. Mail
+From None even if HELO is Pass).
+
+
+The policy server skips SPF checks for connections from the localhost (127.) and
+instead prepends and logs 'SPF skipped - localhost is always allowed.'
+
+
+
+
+4) IP ROTATION VIA IP TABLES
+
+
+First we need creating Interface aliases for your public IPs.
+
+
+Let's say you have 5 ips
+
+
+#ifup eth0:1
+#ifup eth0:2
+#ifup eth0:3
+#ifup eth0:4
+
+
+
+
+Now the iptables part.make sure your iptables support for statistic match module.
+
+
+# iptables -m statistic -h
+......
+......
+......
+statistic match options:
+--mode mode Match mode (random, nth)
+random mode:
+--probability p Probability
+nth mode:
+--every n Match every nth packet
+--packet p Initial counter value (0 <= p <= n-1, default 0)
+Next continue with iptables rule for rotating source IP addresses.
+
+
+# iptables -t nat -I POSTROUTING -m state --state NEW -p tcp --dport 25 -o eth0 -m statistic --mode nth --every 5 -j SNAT --to-source 202.XXX.XX.2
+# iptables -t nat -I POSTROUTING -m state --state NEW -p tcp --dport 25 -o eth0 -m statistic --mode nth --every 5 -j SNAT --to-source 202.XXX.XX.3
+# iptables -t nat -I POSTROUTING -m state --state NEW -p tcp --dport 25 -o eth0 -m statistic --mode nth --every 5 -j SNAT --to-source 202.XXX.XX.4
+# iptables -t nat -I POSTROUTING -m state --state NEW -p tcp --dport 25 -o eth0 -m statistic --mode nth --every 5 -j SNAT --to-source 202.XXX.XX.5
+# iptables -t nat -I POSTROUTING -m state --state NEW -p tcp --dport 25 -o eth0 -m statistic --mode nth --every 5 -j SNAT --to-source 202.XXX.XX.6
+done
+
+
+
+6) REVERSE DNS
+
+The easiest way to get rDNS is to buy a domain with your VPS and ask you hosted to set up rDNS with your VPS, they will do it for free, a domain is not really expensive and it will save you some time :).
+
+
+
+
+7) Whitelisting
+
+
+Whitelisting can help you to get your emails reach inbox instead of spam folder,
+
+i will teach you now how to whitelist your self on some spam filter systems and some email providers.
+
+
+First of all you must have a domain which have valid rDNS with your server, and you must have a web site on your domain. This may takes you some time, but i highly recommend you to make a fake marketing agency web site, i know this may sounds unethical and, maybe even, illegal ( okay, it's hard to believe it could illegal since there is tons of hosting companies, web design agency and so on, which are not registered anywhere ), and you can make some simple looking web site explaining that you are providing email marketing services to your clients. Make sure you make it clear that you have a ZERO tolerance to spam and that all emails you have in your lists are generated by you, bla bla, opt in, bla bla, cpan spam, bla bla, just google some email marketing agency and see what they say :). This will helps you A LOT to get whitelisted almost anywere.
